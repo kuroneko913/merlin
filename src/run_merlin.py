@@ -29,6 +29,7 @@ from frontend.mean_variance_norm import MeanVarianceNorm
 # the new class for label composition and normalisation
 from frontend.label_composer import LabelComposer
 from frontend.label_modifier import HTSLabelModification
+from frontend.merge_features import MergeFeat
 #from frontend.mlpg_fast import MLParameterGenerationFast
 
 #from frontend.mlpg_fast_layer import MLParameterGenerationFastLayer
@@ -98,28 +99,34 @@ def prepare_file_path_list(file_id_list, file_dir, file_extension, new_dir_switc
     return  file_name_list
 
     
-
 def visualize_dnn(dnn):
 
-    layer_num = len(dnn.params)     ## including input and output
     plotlogger = logging.getLogger("plotting")
-    
-    for i in xrange(layer_num):
-        fig_name = 'Activation weights W' + str(i) + '_' + dnn.params[i].name
-        fig_title = 'Activation weights of W' + str(i)
-        xlabel = 'Neuron index of hidden layer ' + str(i)
-        ylabel = 'Neuron index of hidden layer ' + str(i+1)
-        if i == 0:
-            xlabel = 'Input feature index'
-        if i == layer_num-1:
-            ylabel = 'Output feature index'
 
+	# reference activation weights in layers
+    W = list(); layer_name = list()
+    for i in xrange(len(dnn.params)):
         aa = dnn.params[i].get_value(borrow=True).T
         print   aa.shape, aa.size
         if aa.size > aa.shape[0]:
-            logger.create_plot(fig_name, SingleWeightMatrixPlot)
-            plotlogger.add_plot_point(fig_name, fig_name, dnn.params[i].get_value(borrow=True).T)
-            plotlogger.save_plot(fig_name, title=fig_name, xlabel=xlabel, ylabel=ylabel)
+        	W.append(aa)
+        	layer_name.append(dnn.params[i].name)
+        	
+    ## plot activation weights including input and output
+    layer_num = len(W)		
+    for i_layer in xrange(layer_num):
+		fig_name = 'Activation weights W' + str(i_layer) + '_' + layer_name[i_layer]
+		fig_title = 'Activation weights of W' + str(i_layer)
+		xlabel = 'Neuron index of hidden layer ' + str(i_layer)
+		ylabel = 'Neuron index of hidden layer ' + str(i_layer+1)
+		if i_layer == 0:
+			xlabel = 'Input feature index'
+		if i_layer == layer_num-1:
+			ylabel = 'Output feature index'
+		logger.create_plot(fig_name, SingleWeightMatrixPlot)
+		plotlogger.add_plot_point(fig_name, fig_name, W[i_layer])
+		plotlogger.save_plot(fig_name, title=fig_name, xlabel=xlabel, ylabel=ylabel)
+
 
 def load_covariance(var_file_dict, out_dimension_dict): 
     var = {}
@@ -493,7 +500,8 @@ def main_function(cfg):
 
     if cfg.label_style == 'HTS':
         label_normaliser = HTSLabelNormalisation(question_file_name=cfg.question_file_name, add_frame_features=cfg.add_frame_features, subphone_feats=cfg.subphone_feats)
-        lab_dim = label_normaliser.dimension + cfg.appended_input_dim
+        add_feat_dim = sum(cfg.additional_features.values())
+        lab_dim = label_normaliser.dimension + add_feat_dim + cfg.appended_input_dim
         logger.info('Input label dimension is %d' % lab_dim)
         suffix=str(lab_dim)
     # no longer supported - use new "composed" style labels instead
@@ -507,7 +515,7 @@ def main_function(cfg):
         label_data_dir = data_dir
 
     # the number can be removed
-    binary_label_dir      = os.path.join(label_data_dir, 'binary_label_'+suffix)
+    binary_label_dir      = os.path.join(label_data_dir, 'binary_label_'+str(label_normaliser.dimension))
     nn_label_dir          = os.path.join(label_data_dir, 'nn_no_silence_lab_'+suffix)
     nn_label_norm_dir     = os.path.join(label_data_dir, 'nn_no_silence_lab_norm_'+suffix)
 
@@ -542,8 +550,22 @@ def main_function(cfg):
 
     if cfg.NORMLAB and (cfg.label_style == 'HTS'):
         # simple HTS labels 
-    	logger.info('preparing label data (input) using standard HTS style labels')
+        logger.info('preparing label data (input) using standard HTS style labels')
         label_normaliser.perform_normalisation(in_label_align_file_list, binary_label_file_list, label_type=cfg.label_type)
+        
+        if cfg.additional_features:
+            out_feat_dir  = os.path.join(data_dir, 'binary_label_'+suffix)
+            out_feat_file_list = prepare_file_path_list(file_id_list, out_feat_dir, cfg.lab_ext)
+            in_dim = label_normaliser.dimension
+            for new_feature, new_feature_dim in cfg.additional_features.iteritems():
+                new_feat_dir  = os.path.join(data_dir, new_feature)
+                new_feat_file_list = prepare_file_path_list(file_id_list, new_feat_dir, '.'+new_feature)
+                
+                merger = MergeFeat(lab_dim = in_dim, feat_dim = new_feature_dim) 
+                merger.merge_data(binary_label_file_list, new_feat_file_list, out_feat_file_list)
+                in_dim += new_feature_dim
+                
+                binary_label_file_list = out_feat_file_list
 
         remover = SilenceRemover(n_cmp = lab_dim, silence_pattern = cfg.silence_pattern, label_type=cfg.label_type, remove_frame_features = cfg.add_frame_features, subphone_feats = cfg.subphone_feats)
         remover.remove_silence(binary_label_file_list, in_label_align_file_list, nn_label_file_list)
@@ -762,7 +784,8 @@ def main_function(cfg):
     # currently, there are two ways to do this
     if cfg.label_style == 'HTS':
         label_normaliser = HTSLabelNormalisation(question_file_name=cfg.question_file_name, add_frame_features=cfg.add_frame_features, subphone_feats=cfg.subphone_feats)
-        lab_dim = label_normaliser.dimension + cfg.appended_input_dim
+        add_feat_dim = sum(cfg.additional_features.values())
+        lab_dim = label_normaliser.dimension + add_feat_dim + cfg.appended_input_dim
 
     elif cfg.label_style == 'composed':
         label_composer = LabelComposer()
