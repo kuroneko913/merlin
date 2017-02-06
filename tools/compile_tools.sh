@@ -34,12 +34,13 @@ echo "Compiling GlottHMM..."
 )
 # 3. Copy binaries
 
-mkdir -p bin
-mkdir -p bin/SPTK-3.9
-mkdir -p bin/WORLD
+mkdir -p bin/{SPTK-3.9,WORLD,GlottHMM}
 
 cp SPTK-3.9/build/bin/* bin/SPTK-3.9/
 cp WORLD/build/analysis bin/WORLD/
 cp WORLD/build/synth bin/WORLD/
+cp GlottHMM/src/Analysis bin/GlottHMM
+cp GlottHMM/src/Synthesis bin/GlottHMM
+cp GlottHMM/cfg/config_default bin/GlottHMM
 
 echo "All tools successfully compiled!!"
