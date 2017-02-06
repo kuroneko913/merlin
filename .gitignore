@@ -9,6 +9,8 @@ egs/**/conf/*
 # Running part
 experiments/
 *data*
+*wav*
+*.wav
 
 # Tools
 SPTK*
