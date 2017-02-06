@@ -69,3 +69,20 @@ Labels: phone_align; Network: [420->187], LR 0.002 [4 TANH] [4*512]; <br/>
 Valid -- MCD: 5.255 dB; BAP: 0.235 dB; F0:- RMSE: 11.295 Hz; CORR: 0.754; VUV: 6.822% <br/>
 Test  -- MCD: 5.247 dB; BAP: 0.244 dB; F0:- RMSE: 12.003 Hz; CORR: 0.757; VUV: 6.111%
 
+
+
+#### With Merlin tool kit ###
+Develop: DNN -- MCD: 4.911 dB; BAP: 0.225 dB; F0:- RMSE: 11.134 Hz; CORR: 0.764; VUV: 6.012%
+Test: DNN -- MCD: 4.911 dB; BAP: 0.232 dB; F0:- RMSE: 11.899 Hz; CORR: 0.759; VUV: 5.346%
+
+#### With Keras + Theano ###
+Develop: DNN -- MCD: 5.220 dB; BAP: 0.227 dB; F0:- RMSE: 11.490 Hz; CORR: 0.745; VUV: 6.625%
+Test   : DNN -- MCD: 5.203 dB; BAP: 0.238 dB; F0:- RMSE: 12.407 Hz; CORR: 0.737; VUV: 6.083%
+
+#### With keras + tensorflow ###
+Develop: DNN -- MCD: 5.211 dB; BAP: 0.231 dB; F0:- RMSE: 11.350 Hz; CORR: 0.750; VUV: 6.671%
+Test   : DNN -- MCD: 5.190 dB; BAP: 0.238 dB; F0:- RMSE: 12.455 Hz; CORR: 0.733; VUV: 6.173%
+
+#### with highway networks ###
+Develop: DNN -- MCD: 5.841 dB; BAP: 0.250 dB; F0:- RMSE: 15.674 Hz; CORR: 0.455; VUV: 7.712%
+Test   : DNN -- MCD: 5.835 dB; BAP: 0.262 dB; F0:- RMSE: 16.753 Hz; CORR: 0.444; VUV: 7.169%

@@ -34,7 +34,7 @@ echo "WorkDir=${current_working_dir}" >>  $global_config_file
 echo "Voice=${voice_name}" >> $global_config_file
 echo "Labels=phone_align" >> $global_config_file
 echo "QuestionFile=questions-radio_dnn_416.hed" >> $global_config_file
-echo "Vocoder=WORLD" >> $global_config_file
+echo "Vocoder=GlottHMM" >> $global_config_file
 echo "SamplingFreq=16000" >> $global_config_file
 
 echo "FileIDList=file_id_list_full.scp" >> $global_config_file

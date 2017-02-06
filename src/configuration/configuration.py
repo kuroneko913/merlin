@@ -228,6 +228,7 @@ class configuration(object):
             ('sptk_bindir', 'tools/bin/SPTK-3.9', 'Paths','sptk'),
             ('straight_bindir', 'tools/bin/straight', 'Paths','straight'),
             ('world_bindir', 'tools/bin/WORLD', 'Paths','world'),
+            ('glotthmm_bindir', 'tools/bin/GlottHMM', 'Paths', 'glotthmm'),
 
             ('network_type'           , 'RNN'                                           , 'Architecture', 'network_type'),
             ('model_type'           , 'DNN'                                             , 'Architecture', 'model_type'),
@@ -499,6 +500,12 @@ class configuration(object):
             'SYNTHESIS'     : os.path.join(self.world_bindir, 'synth'),
             'ANALYSIS'      : os.path.join(self.world_bindir, 'analysis'),
             }
+        
+        self.GLOTTHMM = {
+            'ANALYSIS'      : os.path.join(self.glotthmm_bindir, 'Analsysis'),
+            'SYNTHESIS'     : os.path.join(self.glotthmm_bindir, 'Synthesis'),
+            'config_file'   : os.path.join(self.glotthmm_bindir, 'config_default')
+        }
 
         # STILL TO DO - test that all the above tools exist and are executable
 
@@ -867,7 +874,7 @@ class configuration(object):
             try:
                 # pass that string as a filehandle
                 fh = StringIO.StringIO(config_string)
-                logging.config.fileConfig(fh)
+               # logging.config.fileConfig(fh)
                 fh.close()
                 logger.info("logging is now fully configured")
 

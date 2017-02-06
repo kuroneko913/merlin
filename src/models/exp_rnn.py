@@ -43,7 +43,8 @@ import logging
 
 class DeepRecurrentNetwork(object): 
     """
-    This class is to assemble various neural network architectures. From basic feedforward neural network to bidirectional gated recurrent neural networks and hybrid architecture. **Hybrid** means a combination of feedforward and recurrent architecture.
+    This class is to assemble various neural network architectures. From basic feedforward neural network to bidirectional gated recurrent neural networks and hybrid architecture. 
+    **Hybrid** means a combination of feedforward and recurrent architecture.
     
     """
 

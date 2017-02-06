@@ -103,64 +103,87 @@ fi
 
 # [Outputs]
 
-sed -i s#'mgc\s*:.*'#'mgc: 60'# $acoustic_config_file
-sed -i s#'dmgc\s*:.*'#'dmgc: 180'# $acoustic_config_file
-
-if [ "$Vocoder" == "STRAIGHT" ]
+if [ "$Vocoder" == "STRAIGHT" ] || [ "$Vocoder" == "WORLD" ]
 then
-    sed -i s#'bap\s*:.*'#'bap: 25'# $acoustic_config_file
-    sed -i s#'dbap\s*:.*'#'dbap: 75'# $acoustic_config_file
-    
-elif [ "$Vocoder" == "WORLD" ]
+    sed -i s#'mgc\s*:.*'#'mgc: 60'# $acoustic_config_file
+    sed -i s#'dmgc\s*:.*'#'dmgc: 180'# $acoustic_config_file
+
+    if [ "$Vocoder" == "STRAIGHT" ]
+    then
+        sed -i s#'bap\s*:.*'#'bap: 25'# $acoustic_config_file
+        sed -i s#'dbap\s*:.*'#'dbap: 75'# $acoustic_config_file
+    else 
+        if [ "$SamplingFreq" == "16000" ]
+        then
+            sed -i s#'bap\s*:.*'#'bap: 1'# $acoustic_config_file
+            sed -i s#'dbap\s*:.*'#'dbap: 3'# $acoustic_config_file
+        elif [ "$SamplingFreq" == "48000" ]
+        then
+            sed -i s#'bap\s*:.*'#'bap: 5'# $acoustic_config_file
+            sed -i s#'dbap\s*:.*'#'dbap: 15'# $acoustic_config_file
+        fi
+    fi
+    sed -i s#'lf0\s*:.*'#'lf0: 1'# $acoustic_config_file
+    sed -i s#'dlf0\s*:.*'#'dlf0: 3'# $acoustic_config_file
+
+elif [ "$Vocoder" == "GlottHMM" ]
 then
     if [ "$SamplingFreq" == "16000" ]
     then
-        sed -i s#'bap\s*:.*'#'bap: 1'# $acoustic_config_file
-        sed -i s#'dbap\s*:.*'#'dbap: 3'# $acoustic_config_file
+        sed -i s#'LSF\s*:.*'#'LSF: 30'# $acoustic_config_file
+        sed -i s#'dLSF\s*:.*'#'dLSF: 90'# $acoustic_config_file
     elif [ "$SamplingFreq" == "48000" ]
     then
-        sed -i s#'bap\s*:.*'#'bap: 5'# $acoustic_config_file
-        sed -i s#'dbap\s*:.*'#'dbap: 15'# $acoustic_config_file
+        sed -i s#'LSF\s*:.*'#'LSF: 50'# $acoustic_config_file
+        sed -i s#'dLSF\s*:.*'#'dLSF: 150'# $acoustic_config_file
+    else
+        echo "This vocoder ($Vocoder) is not supported as of now...please configure yourself!!"
     fi
+    sed -i s#'LSFsource\s*:.*'#'LSFsource: 10'# $acoustic_config_file
+    sed -i s#'dLSFsource\s*:.*'#'dLSFsource: 30'# $acoustic_config_file
+    sed -i s#'HNR\s*:.*'#'HNR: 5'# $acoustic_config_file
+    sed -i s#'dHNR\s*:.*'#'dHNR: 15'# $acoustic_config_file
+    sed -i s#'Gain\s*:.*'#'Gain: 1'# $acoustic_config_file
+    sed -i s#'dGain\s*:.*'#'dGain: 3'# $acoustic_config_file
+    sed -i s#'F0\s*:.*'#'F0: 1'# $acoustic_config_file
+    sed -i s#'dF0\s*:.*'#'dF0: 3'# $acoustic_config_file
 else
     echo "This vocoder ($Vocoder) is not supported as of now...please configure yourself!!"
 fi
 
-sed -i s#'lf0\s*:.*'#'lf0: 1'# $acoustic_config_file
-sed -i s#'dlf0\s*:.*'#'dlf0: 3'# $acoustic_config_file
-
-
 # [Waveform]
 sed -i s#'vocoder_type\s*:.*'#'vocoder_type: '${Vocoder}# $acoustic_config_file
-
 sed -i s#'samplerate\s*:.*'#'samplerate: '${SamplingFreq}# $acoustic_config_file
-if [ "$SamplingFreq" == "16000" ]
-then
-    sed -i s#'framelength\s*:.*'#'framelength: 1024'# $acoustic_config_file
-    sed -i s#'minimum_phase_order\s*:.*'#'minimum_phase_order: 511'# $acoustic_config_file
-    sed -i s#'fw_alpha\s*:.*'#'fw_alpha: 0.58'# $acoustic_config_file
 
-elif [ "$SamplingFreq" == "48000" ]
+if [ "$Vocoder" == "STRAIGHT" ] || [ "$Vocoder" == "WORLD" ]
 then
-    if [ "$Vocoder" == "WORLD" ]
+    if [ "$SamplingFreq" == "16000" ]
     then
-        sed -i s#'framelength\s*:.*'#'framelength: 2048'# $acoustic_config_file
-        sed -i s#'minimum_phase_order\s*:.*'#'minimum_phase_order: 1023'# $acoustic_config_file
-    else
-        sed -i s#'framelength\s*:.*'#'framelength: 4096'# $acoustic_config_file
-        sed -i s#'minimum_phase_order\s*:.*'#'minimum_phase_order: 2047'# $acoustic_config_file
-    fi
-    sed -i s#'fw_alpha\s*:.*'#'fw_alpha: 0.77'# $acoustic_config_file
-else
-    echo "This sampling frequency ($SamplingFreq) never tested before...please configure yourself!!"
-fi
+        sed -i s#'framelength\s*:.*'#'framelength: 1024'# $acoustic_config_file
+        sed -i s#'minimum_phase_order\s*:.*'#'minimum_phase_order: 511'# $acoustic_config_file
+        sed -i s#'fw_alpha\s*:.*'#'fw_alpha: 0.58'# $acoustic_config_file
 
+    elif [ "$SamplingFreq" == "48000" ]
+    then
+        if [ "$Vocoder" == "WORLD" ]
+        then
+            sed -i s#'framelength\s*:.*'#'framelength: 2048'# $acoustic_config_file
+            sed -i s#'minimum_phase_order\s*:.*'#'minimum_phase_order: 1023'# $acoustic_config_file
+        else
+            sed -i s#'framelength\s*:.*'#'framelength: 4096'# $acoustic_config_file
+            sed -i s#'minimum_phase_order\s*:.*'#'minimum_phase_order: 2047'# $acoustic_config_file
+        fi
+        sed -i s#'fw_alpha\s*:.*'#'fw_alpha: 0.77'# $acoustic_config_file
+    else
+        echo "This sampling frequency ($SamplingFreq) never tested before...please configure yourself!!"
+    fi
+fi
 
 # [Architecture]
 if [[ "$Voice" == *"demo"* ]]
 then
-    sed -i s#'hidden_layer_size\s*:.*'#'hidden_layer_size: [512, 512, 512, 512]'# $acoustic_config_file
-    sed -i s#'hidden_layer_type\s*:.*'#'hidden_layer_type: ['\''TANH'\'', '\''TANH'\'', '\''TANH'\'', '\''TANH'\'']'# $acoustic_config_file
+    sed -i s#'hidden_layer_size\s*:.*'#'hidden_layer_size: [512, 512]'# $acoustic_config_file
+    sed -i s#'hidden_layer_type\s*:.*'#'hidden_layer_type: ['\''TANH'\'',  '\''TANH'\'']'# $acoustic_config_file
 fi
 
 

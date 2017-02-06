@@ -38,7 +38,7 @@ from frontend.merge_features import MergeFeat
 
 import configuration
 #from models.deep_rnn import DeepRecurrentNetwork
-from models.dnn_keras import DNN, RNN
+from models.dnn_keras import DNN, RNN, HWAY
 from utils.compute_distortion import DistortionComputation, IndividualDistortionComp
 from utils.generate import generate_wav
 from utils.learn_rates import ExpDecreaseLearningRate
@@ -232,7 +232,7 @@ def train_DNN(train_xy_file_list, valid_xy_file_list, \
     valid_fn = None
     valid_model = None ## valid_fn and valid_model are the same. reserve to computer multi-stream distortion
     if model_type == 'DNN':
-        dnn_model = RNN(n_in= n_ins, hidden_layer_size = hidden_layer_size, n_out = n_outs, 
+        dnn_model = HWAY(n_in= n_ins, hidden_layer_size = hidden_layer_size, n_out = n_outs, 
                                          L1_reg = l1_reg, L2_reg = l2_reg, hidden_layer_type = hidden_layer_type, dropout_rate = dropout_rate)       
     else: 
         logger.critical('%s type NN model is not supported!' %(model_type))
@@ -271,23 +271,24 @@ def train_DNN(train_xy_file_list, valid_xy_file_list, \
         sub_start_time = time.time()
 
         while (not train_data_reader.is_finish()):
-
             shared_train_set_xy, temp_train_set_x, temp_train_set_y = train_data_reader.load_one_partition()
-#            train_set_x.set_value(numpy.asarray(temp_train_set_x, dtype=theano.config.floatX), borrow=True)
-#            train_set_y.set_value(numpy.asarray(temp_train_set_y, dtype=theano.config.floatX), borrow=True)
-            r, c = temp_train_set_x.shape
-            temp_train_set_x = numpy.reshape(temp_train_set_x, (r, 1, c))
             #dnn_model.model.fit(temp_train_set_x, temp_train_set_y, nb_epoch=1, batch_size=batch_size)
             # if sequential training, the batch size will be the number of frames in an utterance
-            dnn_model.model.fit(temp_train_set_x, temp_train_set_y, nb_epoch=1)
+            #r, c = temp_train_set_x.shape
+            #temp_train_set_x = numpy.reshape(temp_train_set_x, (r, 1, c))
+            # assign the learning rate
+            dnn_model.model.optimizer.lr.assign(current_finetune_lr)
+            print dnn_model.model.optimizer.lr
+            #dnn_model.model.optimizer.momentum.assign(current_momentum)
+            dnn_model.model.fit(temp_train_set_x, temp_train_set_y, batch_size=batch_size, nb_epoch=1)
         train_data_reader.reset()
         
         logger.debug('calculating validation loss')
         validation_losses = []
         while (not valid_data_reader.is_finish()):
             shared_valid_set_xy, temp_valid_set_x, temp_valid_set_y = valid_data_reader.load_one_partition()
-            r, c = temp_valid_set_x.shape
-            temp_valid_set_x = numpy.reshape(temp_valid_set_x, (r,1,c))
+            # r, c = temp_valid_set_x.shape
+            # temp_valid_set_x = numpy.reshape(temp_valid_set_x, (r,1,c))
             mse_score = dnn_model.model.evaluate(temp_valid_set_x, temp_valid_set_y)
             validation_losses.append(mse_score)
         valid_data_reader.reset()
@@ -308,16 +309,13 @@ def train_DNN(train_xy_file_list, valid_xy_file_list, \
 
         if this_validation_loss < best_validation_loss:
             if epoch > 1:
-                #cPickle.dump(best_dnn_model, open(nnets_file_name, 'wb'))
                 dnn_model.model.save(nnets_file_name)
             best_dnn_model = dnn_model.model
             best_validation_loss = this_validation_loss
-#            logger.debug('validation loss decreased, so saving model')
+            logger.debug('validation loss decreased, so saving model')
             
         if this_validation_loss >= previous_loss:
             logger.debug('validation loss increased')
-
-#            dbn = best_dnn_model
             early_stop += 1
 
         if epoch > 15 and early_stop > early_stop_epoch:
@@ -330,7 +328,6 @@ def train_DNN(train_xy_file_list, valid_xy_file_list, \
         previous_loss = this_validation_loss
 
     end_time = time.time()
-#    cPickle.dump(best_dnn_model, open(nnets_file_name, 'wb'))
             
     logger.info('overall  training time: %.2fm validation error %f' % ((end_time - start_time) / 60., best_validation_loss))
 
@@ -358,8 +355,8 @@ def dnn_generation(valid_file_list, nnets_file_name, n_ins, n_outs, out_file_lis
         fid_lab.close()
         features = features[:(n_ins * (features.size / n_ins))]
         test_set_x = features.reshape((-1, n_ins))
-        r, c = test_set_x.shape
-        test_set_x = numpy.reshape(test_set_x,(r,1,c))
+        # r, c = test_set_x.shape
+        # test_set_x = numpy.reshape(test_set_x,(r,1,c))
         predicted_parameter = dnn_model.model.predict(test_set_x)
 
         ### write to cmp file

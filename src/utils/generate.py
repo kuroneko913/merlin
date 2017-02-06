@@ -138,6 +138,7 @@ def generate_wav(gen_dir, file_id_list, cfg):
 #    NND      = cfg.NND
     STRAIGHT = cfg.STRAIGHT
     WORLD    = cfg.WORLD
+    GLOTTHMM = cfg.GLOTTHMM
 
     ## to be moved
     pf_coef = cfg.pf_coef
@@ -168,119 +169,149 @@ def generate_wav(gen_dir, file_id_list, cfg):
         ref_gv_std, frame_number = io_funcs.load_binary_file_frame(ref_gv_std_file, 1)
         gen_gv_std, frame_number = io_funcs.load_binary_file_frame(gen_gv_std_file, 1)
 
-    counter=1
+    counter = 1
     max_counter = len(file_id_list)
 
     for filename in file_id_list:
 
         logger.info('creating waveform for %4d of %4d: %s' % (counter,max_counter,filename) )
-        counter=counter+1
+        counter = counter+1
         base   = filename
-        files = {'sp'  : base + cfg.sp_ext,
-                 'mgc' : base + cfg.mgc_ext,
-                 'f0'  : base + '.f0',
-                 'lf0' : base + cfg.lf0_ext,
-                 'ap'  : base + '.ap',
-                 'bap' : base + cfg.bap_ext,
-                 'wav' : base + '.wav'}
 
-        mgc_file_name = files['mgc']
-        bap_file_name = files['bap']
-        
         cur_dir = os.getcwd()
         os.chdir(gen_dir)
 
-        ### post-filtering
-        if cfg.do_post_filtering:
-            line = "echo 1 1 "
-            for i in range(2, cfg.mgc_dim):
-                line = line + str(pf_coef) + " "
+        if cfg.vocoder_type == "GlottHMM":
+            files = {'lsf'  : base + cfg.LSF_ext,
+                    'lsfsource' : base + cfg.LSFsource_ext,
+                    'f0'  : base + cfg.F0_ext,
+                    'hnr' : base + cfg.HNR_ext,
+                    'gain' : base + cfg.Gain_ext,
+                    'wav' : base + '.wav'}
+           
+           ## convert binary files into ascii files
+            # print('{sopr} -magic -1.0E+10 -MAGIC 0.0 {f0} | {x2x} +fa > temp.f0'.format(sopr=SPTK['SOPR'], f0=files['f0'], x2x=SPTK['X2X']))
+            run_process('{sopr} -magic -1.0E+10 -MAGIC 0.0 {f0} | {x2x} +fa > temp.f0'.format(sopr=SPTK['SOPR'], f0=files['f0'], x2x=SPTK['X2X']))
+            run_process('mv temp.f0 {f0}'.format(f0=files['f0']))
 
-            run_process('{line} | {x2x} +af > {weight}'
-                        .format(line=line, x2x=SPTK['X2X'], weight=os.path.join(gen_dir, 'weight')))
+            run_process('{x2x} +fa {gain} > temp.gain'.format(x2x=SPTK['X2X'], gain=files['gain']))
+            run_process('mv temp.gain {gain}'.format(gain=files['gain'])) 
 
-            run_process('{freqt} -m {order} -a {fw} -M {co} -A 0 < {mgc} | {c2acr} -m {co} -M 0 -l {fl} > {base_r0}'
-                        .format(freqt=SPTK['FREQT'], order=cfg.mgc_dim-1, fw=fw_coef, co=co_coef, mgc=files['mgc'], c2acr=SPTK['C2ACR'], fl=fl_coef, base_r0=files['mgc']+'_r0'))
+            run_process('{x2x} +fa {lsf} > temp.lsf'.format(x2x=SPTK['X2X'], lsf=files['lsf']))
+            run_process('mv temp.lsf {lsf}'.format(lsf=files['lsf'])) 
 
-            run_process('{vopr} -m -n {order} < {mgc} {weight} | {freqt} -m {order} -a {fw} -M {co} -A 0 | {c2acr} -m {co} -M 0 -l {fl} > {base_p_r0}'
-                        .format(vopr=SPTK['VOPR'], order=cfg.mgc_dim-1, mgc=files['mgc'], weight=os.path.join(gen_dir, 'weight'),
-                                freqt=SPTK['FREQT'], fw=fw_coef, co=co_coef, 
-                                c2acr=SPTK['C2ACR'], fl=fl_coef, base_p_r0=files['mgc']+'_p_r0'))
+            run_process('{x2x} +fa {lsfsource} > temp.lsfsource'.format(x2x=SPTK['X2X'], lsfsource=files['lsfsource']))
+            run_process('mv temp.lsfsource {lsfsource}'.format(lsfsource=files['lsfsource']))
 
-            run_process('{vopr} -m -n {order} < {mgc} {weight} | {mc2b} -m {order} -a {fw} | {bcp} -n {order} -s 0 -e 0 > {base_b0}'
-                        .format(vopr=SPTK['VOPR'], order=cfg.mgc_dim-1, mgc=files['mgc'], weight=os.path.join(gen_dir, 'weight'),
-                                mc2b=SPTK['MC2B'], fw=fw_coef, 
-                                bcp=SPTK['BCP'], base_b0=files['mgc']+'_b0'))
+            run_process('{x2x} +fa {hnr} > temp.hnr'.format(x2x=SPTK['X2X'], hnr=files['hnr']))
+            run_process('mv temp.hnr {hnr}'.format(hnr=files['hnr']))
 
-            run_process('{vopr} -d < {base_r0} {base_p_r0} | {sopr} -LN -d 2 | {vopr} -a {base_b0} > {base_p_b0}'
-                        .format(vopr=SPTK['VOPR'], base_r0=files['mgc']+'_r0', base_p_r0=files['mgc']+'_p_r0', 
-                                sopr=SPTK['SOPR'], 
-                                base_b0=files['mgc']+'_b0', base_p_b0=files['mgc']+'_p_b0'))
-          
-            run_process('{vopr} -m -n {order} < {mgc} {weight} | {mc2b} -m {order} -a {fw} | {bcp} -n {order} -s 1 -e {order} | {merge} -n {order2} -s 0 -N 0 {base_p_b0} | {b2mc} -m {order} -a {fw} > {base_p_mgc}'
-                        .format(vopr=SPTK['VOPR'], order=cfg.mgc_dim-1, mgc=files['mgc'], weight=os.path.join(gen_dir, 'weight'),
-                                mc2b=SPTK['MC2B'],  fw=fw_coef, 
-                                bcp=SPTK['BCP'], 
-                                merge=SPTK['MERGE'], order2=cfg.mgc_dim-2, base_p_b0=files['mgc']+'_p_b0',
-                                b2mc=SPTK['B2MC'], base_p_mgc=files['mgc']+'_p_mgc'))
-
-            mgc_file_name = files['mgc']+'_p_mgc'
-            
-        if cfg.vocoder_type == "STRAIGHT" and cfg.apply_GV:
-            gen_mgc, frame_number = io_funcs.load_binary_file_frame(mgc_file_name, cfg.mgc_dim)
-
-            gen_mu  = np.reshape(np.mean(gen_mgc, axis=0), (-1, 1))
-            gen_std = np.reshape(np.std(gen_mgc, axis=0), (-1, 1))
-   
-            local_gv = (ref_gv_std/gen_gv_std) * (gen_std - gen_gv_mean) + ref_gv_mean;
-   
-            enhanced_mgc = np.repeat(local_gv, frame_number, 1).T / np.repeat(gen_std, frame_number, 1).T * (gen_mgc - np.repeat(gen_mu, frame_number, 1).T) + np.repeat(gen_mu, frame_number, 1).T;
-            
-            new_mgc_file_name = files['mgc']+'_p_mgc'
-            io_funcs.array_to_binary_file(enhanced_mgc, new_mgc_file_name) 
-            
-            mgc_file_name = files['mgc']+'_p_mgc'
+            print('{synthesis} {base} {config_file}'.format(synthesis=GLOTTHMM['SYNTHESIS'], base=base, config_file=GLOTTHMM['config_file']))
+            run_process('{synthesis} {base} {config_file}'.format(synthesis=GLOTTHMM['SYNTHESIS'], base=base, config_file=GLOTTHMM['config_file']))
         
-        if cfg.do_post_filtering and cfg.apply_GV:
-            logger.critical('Both smoothing techniques together can\'t be applied!!\n' )
-            raise
+        elif cfg.vocoder_type == "STRAIGHT" or cfg.vocoder_type == "WORLD":
+            files = {'sp'  : base + cfg.sp_ext,
+                    'mgc' : base + cfg.mgc_ext,
+                    'f0'  : base + '.f0',
+                    'lf0' : base + cfg.lf0_ext,
+                    'ap'  : base + '.ap',
+                    'bap' : base + cfg.bap_ext,
+                    'wav' : base + '.wav'}
 
-        ###mgc to sp to wav
-        if cfg.vocoder_type == 'STRAIGHT':
-            run_process('{mgc2sp} -a {alpha} -g 0 -m {order} -l {fl} -o 2 {mgc} > {sp}'
-                        .format(mgc2sp=SPTK['MGC2SP'], alpha=cfg.fw_alpha, order=cfg.mgc_dim-1, fl=cfg.fl, mgc=mgc_file_name, sp=files['sp']))
-            run_process('{sopr} -magic -1.0E+10 -EXP -MAGIC 0.0 {lf0} > {f0}'.format(sopr=SPTK['SOPR'], lf0=files['lf0'], f0=files['f0']))
-            run_process('{x2x} +fa {f0} > {f0a}'.format(x2x=SPTK['X2X'], f0=files['f0'], f0a=files['f0'] + '.a'))
+            mgc_file_name = files['mgc']
+            bap_file_name = files['bap']
 
-            if cfg.use_cep_ap:
-                run_process('{mgc2sp} -a {alpha} -g 0 -m {order} -l {fl} -o 0 {bap} > {ap}'
-                            .format(mgc2sp=SPTK['MGC2SP'], alpha=cfg.fw_alpha, order=cfg.bap_dim-1, fl=cfg.fl, bap=files['bap'], ap=files['ap']))
-            else:
-                run_process('{bndap2ap} {bap} > {ap}' 
-                             .format(bndap2ap=STRAIGHT['BNDAP2AP'], bap=files['bap'], ap=files['ap']))
+            ### post-filtering
+            if cfg.do_post_filtering:
+                line = "echo 1 1 "
+                for i in range(2, cfg.mgc_dim):
+                    line = line + str(pf_coef) + " "
 
-            run_process('{synfft} -f {sr} -spec -fftl {fl} -shift {shift} -sigp 0.0 -cornf 400 -float -apfile {ap} {f0a} {sp} {wav}'
-                        .format(synfft=STRAIGHT['SYNTHESIS_FFT'], sr=cfg.sr, fl=cfg.fl, shift=cfg.shift, ap=files['ap'], f0a=files['f0']+'.a', sp=files['sp'], wav=files['wav']))
+                run_process('{line} | {x2x} +af > {weight}'
+                            .format(line=line, x2x=SPTK['X2X'], weight=os.path.join(gen_dir, 'weight')))
 
-            run_process('rm -f {sp} {f0} {f0a} {ap}'
-                        .format(sp=files['sp'],f0=files['f0'],f0a=files['f0']+'.a',ap=files['ap']))
-        elif cfg.vocoder_type == 'WORLD':        
+                run_process('{freqt} -m {order} -a {fw} -M {co} -A 0 < {mgc} | {c2acr} -m {co} -M 0 -l {fl} > {base_r0}'
+                            .format(freqt=SPTK['FREQT'], order=cfg.mgc_dim-1, fw=fw_coef, co=co_coef, mgc=files['mgc'], c2acr=SPTK['C2ACR'], fl=fl_coef, base_r0=files['mgc']+'_r0'))
 
-            run_process('{sopr} -magic -1.0E+10 -EXP -MAGIC 0.0 {lf0} | {x2x} +fd > {f0}'.format(sopr=SPTK['SOPR'], lf0=files['lf0'], x2x=SPTK['X2X'], f0=files['f0']))        
+                run_process('{vopr} -m -n {order} < {mgc} {weight} | {freqt} -m {order} -a {fw} -M {co} -A 0 | {c2acr} -m {co} -M 0 -l {fl} > {base_p_r0}'
+                            .format(vopr=SPTK['VOPR'], order=cfg.mgc_dim-1, mgc=files['mgc'], weight=os.path.join(gen_dir, 'weight'),
+                                    freqt=SPTK['FREQT'], fw=fw_coef, co=co_coef, 
+                                    c2acr=SPTK['C2ACR'], fl=fl_coef, base_p_r0=files['mgc']+'_p_r0'))
+
+                run_process('{vopr} -m -n {order} < {mgc} {weight} | {mc2b} -m {order} -a {fw} | {bcp} -n {order} -s 0 -e 0 > {base_b0}'
+                            .format(vopr=SPTK['VOPR'], order=cfg.mgc_dim-1, mgc=files['mgc'], weight=os.path.join(gen_dir, 'weight'),
+                                    mc2b=SPTK['MC2B'], fw=fw_coef, 
+                                    bcp=SPTK['BCP'], base_b0=files['mgc']+'_b0'))
+
+                run_process('{vopr} -d < {base_r0} {base_p_r0} | {sopr} -LN -d 2 | {vopr} -a {base_b0} > {base_p_b0}'
+                            .format(vopr=SPTK['VOPR'], base_r0=files['mgc']+'_r0', base_p_r0=files['mgc']+'_p_r0', 
+                                    sopr=SPTK['SOPR'], 
+                                    base_b0=files['mgc']+'_b0', base_p_b0=files['mgc']+'_p_b0'))
             
-            run_process('{sopr} -c 0 {bap} | {x2x} +fd > {ap}'.format(sopr=SPTK['SOPR'],bap=files['bap'],x2x=SPTK['X2X'],ap=files['ap']))
-            
-            ### If using world v2, please comment above line and uncomment this
-            #run_process('{mgc2sp} -a {alpha} -g 0 -m {order} -l {fl} -o 0 {bap} | {sopr} -d 32768.0 -P | {x2x} +fd > {ap}'
-            #            .format(mgc2sp=SPTK['MGC2SP'], alpha=cfg.fw_alpha, order=cfg.bap_dim, fl=cfg.fl, bap=bap_file_name, sopr=SPTK['SOPR'], x2x=SPTK['X2X'], ap=files['ap']))
+                run_process('{vopr} -m -n {order} < {mgc} {weight} | {mc2b} -m {order} -a {fw} | {bcp} -n {order} -s 1 -e {order} | {merge} -n {order2} -s 0 -N 0 {base_p_b0} | {b2mc} -m {order} -a {fw} > {base_p_mgc}'
+                            .format(vopr=SPTK['VOPR'], order=cfg.mgc_dim-1, mgc=files['mgc'], weight=os.path.join(gen_dir, 'weight'),
+                                    mc2b=SPTK['MC2B'],  fw=fw_coef, 
+                                    bcp=SPTK['BCP'], 
+                                    merge=SPTK['MERGE'], order2=cfg.mgc_dim-2, base_p_b0=files['mgc']+'_p_b0',
+                                    b2mc=SPTK['B2MC'], base_p_mgc=files['mgc']+'_p_mgc'))
 
-            run_process('{mgc2sp} -a {alpha} -g 0 -m {order} -l {fl} -o 2 {mgc} | {sopr} -d 32768.0 -P | {x2x} +fd > {sp}'
-                        .format(mgc2sp=SPTK['MGC2SP'], alpha=cfg.fw_alpha, order=cfg.mgc_dim-1, fl=cfg.fl, mgc=mgc_file_name, sopr=SPTK['SOPR'], x2x=SPTK['X2X'], sp=files['sp']))
+                mgc_file_name = files['mgc']+'_p_mgc'
+                
+            if cfg.vocoder_type == "STRAIGHT" and cfg.apply_GV:
+                gen_mgc, frame_number = io_funcs.load_binary_file_frame(mgc_file_name, cfg.mgc_dim)
 
-            run_process('{synworld} {fl} {sr} {f0} {sp} {ap} {wav}'
-                         .format(synworld=WORLD['SYNTHESIS'], fl=cfg.fl, sr=cfg.sr, f0=files['f0'], sp=files['sp'], ap=files['ap'], wav=files['wav']))
+                gen_mu  = np.reshape(np.mean(gen_mgc, axis=0), (-1, 1))
+                gen_std = np.reshape(np.std(gen_mgc, axis=0), (-1, 1))
+    
+                local_gv = (ref_gv_std/gen_gv_std) * (gen_std - gen_gv_mean) + ref_gv_mean;
+    
+                enhanced_mgc = np.repeat(local_gv, frame_number, 1).T / np.repeat(gen_std, frame_number, 1).T * (gen_mgc - np.repeat(gen_mu, frame_number, 1).T) + np.repeat(gen_mu, frame_number, 1).T;
+                
+                new_mgc_file_name = files['mgc']+'_p_mgc'
+                io_funcs.array_to_binary_file(enhanced_mgc, new_mgc_file_name) 
+                
+                mgc_file_name = files['mgc']+'_p_mgc'
             
-            run_process('rm -f {ap} {sp} {f0}'.format(ap=files['ap'],sp=files['sp'],f0=files['f0']))
+            if cfg.do_post_filtering and cfg.apply_GV:
+                logger.critical('Both smoothing techniques together can\'t be applied!!\n' )
+                raise
+
+            ###mgc to sp to wav
+            if cfg.vocoder_type == 'STRAIGHT':
+                run_process('{mgc2sp} -a {alpha} -g 0 -m {order} -l {fl} -o 2 {mgc} > {sp}'
+                            .format(mgc2sp=SPTK['MGC2SP'], alpha=cfg.fw_alpha, order=cfg.mgc_dim-1, fl=cfg.fl, mgc=mgc_file_name, sp=files['sp']))
+                run_process('{sopr} -magic -1.0E+10 -EXP -MAGIC 0.0 {lf0} > {f0}'.format(sopr=SPTK['SOPR'], lf0=files['lf0'], f0=files['f0']))
+                run_process('{x2x} +fa {f0} > {f0a}'.format(x2x=SPTK['X2X'], f0=files['f0'], f0a=files['f0'] + '.a'))
+
+                if cfg.use_cep_ap:
+                    run_process('{mgc2sp} -a {alpha} -g 0 -m {order} -l {fl} -o 0 {bap} > {ap}'
+                                .format(mgc2sp=SPTK['MGC2SP'], alpha=0.0, order=cfg.bap_dim-1, fl=cfg.fl, bap=files['bap'], ap=files['ap']))
+                else:
+                    run_process('{bndap2ap} {bap} > {ap}' 
+                                .format(bndap2ap=STRAIGHT['BNDAP2AP'], bap=files['bap'], ap=files['ap']))
+
+                run_process('{synfft} -f {sr} -spec -fftl {fl} -shift {shift} -sigp 1.2 -cornf 4000 -float -apfile {ap} {f0a} {sp} {wav}'
+                            .format(synfft=STRAIGHT['SYNTHESIS_FFT'], sr=cfg.sr, fl=cfg.fl, shift=cfg.shift, ap=files['ap'], f0a=files['f0']+'.a', sp=files['sp'], wav=files['wav']))
+
+                run_process('rm -f {sp} {f0} {f0a} {ap}'
+                            .format(sp=files['sp'],f0=files['f0'],f0a=files['f0']+'.a',ap=files['ap']))
+            elif cfg.vocoder_type == 'WORLD':        
+
+                run_process('{sopr} -magic -1.0E+10 -EXP -MAGIC 0.0 {lf0} | {x2x} +fd > {f0}'.format(sopr=SPTK['SOPR'], lf0=files['lf0'], x2x=SPTK['X2X'], f0=files['f0']))        
+                
+                run_process('{sopr} -c 0 {bap} | {x2x} +fd > {ap}'.format(sopr=SPTK['SOPR'],bap=files['bap'],x2x=SPTK['X2X'],ap=files['ap']))
+                
+                ### If using world v2, please comment above line and uncomment this
+                #run_process('{mgc2sp} -a {alpha} -g 0 -m {order} -l {fl} -o 0 {bap} | {sopr} -d 32768.0 -P | {x2x} +fd > {ap}'
+                #            .format(mgc2sp=SPTK['MGC2SP'], alpha=cfg.fw_alpha, order=cfg.bap_dim, fl=cfg.fl, bap=bap_file_name, sopr=SPTK['SOPR'], x2x=SPTK['X2X'], ap=files['ap']))
+
+                run_process('{mgc2sp} -a {alpha} -g 0 -m {order} -l {fl} -o 2 {mgc} | {sopr} -d 32768.0 -P | {x2x} +fd > {sp}'
+                            .format(mgc2sp=SPTK['MGC2SP'], alpha=cfg.fw_alpha, order=cfg.mgc_dim-1, fl=cfg.fl, mgc=mgc_file_name, sopr=SPTK['SOPR'], x2x=SPTK['X2X'], sp=files['sp']))
+
+                run_process('{synworld} {fl} {sr} {f0} {sp} {ap} {wav}'
+                            .format(synworld=WORLD['SYNTHESIS'], fl=cfg.fl, sr=cfg.sr, f0=files['f0'], sp=files['sp'], ap=files['ap'], wav=files['wav']))
+                
+                run_process('rm -f {ap} {sp} {f0}'.format(ap=files['ap'],sp=files['sp'],f0=files['f0']))
 
         else:
         
@@ -289,3 +320,13 @@ def generate_wav(gen_dir, file_id_list, cfg):
         
         os.chdir(cur_dir)
 
+if __name__ == "__main__":
+    gen_dir = '/u/97/bollepb1/unix/work/nancy/straight/temp'
+    file_id_list = ['SLAT072-001-00','SLAT072-009-02' ]
+    #gen_dir = '/l/jenny/straight/gen/DNN_TANH_TANH_LSTM_LINEAR__mgc_lf0_vuv_bap_1_4100_335_259_3_512_256'
+    #file_id_list = ['jenny_6724', 'jenny_6725', 'jenny_6726']
+    cfg=configuration.cfg
+    config_file = '/u/97/bollepb1/unix/work/nancy/straight/hybrid_lstm_baseline.conf'
+    config_file = os.path.abspath(config_file)
+    cfg.configure(config_file)
+    generate_wav(gen_dir, file_id_list, cfg)

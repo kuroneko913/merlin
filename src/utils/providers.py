@@ -162,10 +162,10 @@ class ListDataProvider(object):
         return  data_set
 
     def load_one_partition(self):
+        networks_list = ['RNN', 'LSTM', 'BLSTM', 'SLSTM', 'BSLSTM', 'GRU'
+        'SGRU', 'LSTM_NFG', 'LSTM_NOG', 'LSTM_NIG', 'LSTM_NPH']
         if self.sequential == True:
-            if not self.network_type:
-                shared_set_xy, temp_set_x, temp_set_y = self.load_next_utterance()
-            elif self.network_type=="RNN":
+            if self.network_type in networks_list:
                 shared_set_xy, temp_set_x, temp_set_y = self.load_next_utterance()
             elif self.network_type=="CTC":
                 shared_set_xy, temp_set_x, temp_set_y = self.load_next_utterance_CTC()

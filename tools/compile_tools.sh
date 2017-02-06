@@ -2,17 +2,17 @@
 
 # 1. Get and compile SPTK
 
-echo "downloading SPTK-3.9..."
-wget http://downloads.sourceforge.net/sp-tk/SPTK-3.9.tar.gz
-tar xzf SPTK-3.9.tar.gz
+#echo "downloading SPTK-3.9..."
+#wget http://downloads.sourceforge.net/sp-tk/SPTK-3.9.tar.gz
+#tar xzf SPTK-3.9.tar.gz
 
-echo "compiling SPTK..."
-(
-    cd SPTK-3.9;
-    ./configure --prefix=$PWD/build;
-    make;
-    make install
-)
+#echo "compiling SPTK..."
+#(
+#    cd SPTK-3.9;
+#    ./configure --prefix=$PWD/build;
+#    make;
+#    make install
+#)
 
 # 2. Getting WORLD
 
@@ -24,6 +24,14 @@ echo "compiling WORLD..."
     make clean
 )
 
+# 3. Getting GlottHMM
+
+echo "Compiling GlottHMM..."
+(
+    git clone https://github.com/mjansche/GlottHMM.git
+    cd GlottHMM/src
+    make
+)
 # 3. Copy binaries
 
 mkdir -p bin

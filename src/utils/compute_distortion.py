@@ -176,9 +176,17 @@ class IndividualDistortionComp(object):
             if file_ext == '.lf0':
                 ref_all_files_data = numpy.concatenate((ref_all_files_data, ref_data), axis=0)
                 gen_all_files_data = numpy.concatenate((gen_all_files_data, gen_data), axis=0)
+                temp_distortion, temp_vuv_error, voiced_frame_number = self.compute_lf0_mse(ref_data, gen_data)
+                vuv_error += temp_vuv_error
+                total_voiced_frame_number += voiced_frame_number
+
+            elif file_ext == '.F0':
+                ref_all_files_data = numpy.concatenate((ref_all_files_data, ref_data), axis=0)
+                gen_all_files_data = numpy.concatenate((gen_all_files_data, gen_data), axis=0)
                 temp_distortion, temp_vuv_error, voiced_frame_number = self.compute_f0_mse(ref_data, gen_data)
                 vuv_error += temp_vuv_error
                 total_voiced_frame_number += voiced_frame_number
+                
             elif file_ext == '.dur':
                 ref_data = numpy.reshape(numpy.sum(ref_data, axis=1), (-1, 1))
                 gen_data = numpy.reshape(numpy.sum(gen_data, axis=1), (-1, 1))
@@ -204,6 +212,14 @@ class IndividualDistortionComp(object):
             vuv_error  /= float(total_frame_number)
 
             distortion = numpy.sqrt(distortion)
+            f0_corr = self.compute_lf0_corr(ref_all_files_data, gen_all_files_data)
+
+            return  distortion, f0_corr, vuv_error
+        elif file_ext == '.F0':
+            distortion /= float(total_voiced_frame_number)
+            vuv_error  /= float(total_frame_number)
+
+            distortion = numpy.sqrt(distortion)
             f0_corr = self.compute_f0_corr(ref_all_files_data, gen_all_files_data)
 
             return  distortion, f0_corr, vuv_error
@@ -212,7 +228,7 @@ class IndividualDistortionComp(object):
 
             return  distortion
 
-    def compute_f0_mse(self, ref_data, gen_data):
+    def compute_lf0_mse(self, ref_data, gen_data):
         ref_vuv_vector = numpy.zeros((ref_data.size, 1))
         gen_vuv_vector = numpy.zeros((ref_data.size, 1))
         
@@ -231,8 +247,8 @@ class IndividualDistortionComp(object):
         vuv_error = numpy.sum(sum_ref_gen_vector[sum_ref_gen_vector == 1.0])
 
         return  f0_mse, vuv_error, voiced_frame_number
-
-    def compute_f0_corr(self, ref_data, gen_data):
+    
+    def compute_lf0_corr(self, ref_data, gen_data):
         ref_vuv_vector = numpy.zeros((ref_data.size, 1))
         gen_vuv_vector = numpy.zeros((ref_data.size, 1))
         
@@ -246,6 +262,41 @@ class IndividualDistortionComp(object):
 
         return f0_corr
 
+    def compute_f0_mse(self, ref_data, gen_data):
+        ref_vuv_vector = numpy.zeros((ref_data.size, 1))
+        gen_vuv_vector = numpy.zeros((ref_data.size, 1))
+        
+        ref_vuv_vector[ref_data > 0.0] = 1.0
+        gen_vuv_vector[gen_data > 0.0] = 1.0
+
+        sum_ref_gen_vector = ref_vuv_vector + gen_vuv_vector
+        voiced_ref_data = ref_data[sum_ref_gen_vector == 2.0]
+        voiced_gen_data = gen_data[sum_ref_gen_vector == 2.0]
+        voiced_frame_number = voiced_gen_data.size
+
+        f0_mse = (voiced_ref_data - voiced_gen_data) ** 2
+        f0_mse = numpy.sum((f0_mse))
+
+        vuv_error_vector = sum_ref_gen_vector[sum_ref_gen_vector == 0.0]
+        vuv_error = numpy.sum(sum_ref_gen_vector[sum_ref_gen_vector == 1.0])
+
+        return  f0_mse, vuv_error, voiced_frame_number
+
+    def compute_f0_corr(self, ref_data, gen_data):
+        ref_vuv_vector = numpy.zeros((ref_data.size, 1))
+        gen_vuv_vector = numpy.zeros((ref_data.size, 1))
+        
+        ref_vuv_vector[ref_data > 0.0] = 1.0
+        gen_vuv_vector[gen_data > 0.0] = 1.0
+
+        sum_ref_gen_vector = ref_vuv_vector + gen_vuv_vector
+        voiced_ref_data = ref_data[sum_ref_gen_vector == 2.0]
+        voiced_gen_data = gen_data[sum_ref_gen_vector == 2.0]
+        f0_corr = self.compute_corr(voiced_ref_data, voiced_gen_data)
+
+        return f0_corr
+
+    
     def compute_corr(self, ref_data, gen_data):
         corr_coef = pearsonr(ref_data, gen_data)
 

@@ -189,22 +189,37 @@ class   AcousticComposition(AcousticBase):
 
 if __name__ == '__main__':
 
-    acoustic_cmper = AcousticPreparation()
+    acoustic_cmper = AcousticComposition()
 
-    in_dimension_dict = { 'mgc' : 50,
-                          'lf0' : 1,
-                          'bap' : 25}    
-    out_dimension_dict = { 'mgc' : 150,
-                           'lf0' : 3,
-                           'vuv' : 1,
-                           'bap' : 75}
+    in_dimension_dict = { 'Gain': 1,
+                          'LSF' : 30,
+                          'F0' : 1,
+                          'LSFsource' : 10,
+                          'HNR': 5}
+
+    out_dimension_dict = {'Gain': 3,
+                          'LSF' : 90,
+                          'F0' : 3,
+                          'LSFsource' : 30,
+                          'HNR': 15,
+                          'vuv' : 1}
     
     in_file_list_dict = {}
-    in_file_list_dict['mgc'] = ['/afs/inf.ed.ac.uk/group/project/dnn_tts/data/nick/mgc/herald_001.mgc', '/afs/inf.ed.ac.uk/group/project/dnn_tts/data/nick/mgc/herald_002.mgc']
-    in_file_list_dict['lf0'] = ['/afs/inf.ed.ac.uk/group/project/dnn_tts/data/nick/lf0/herald_001.lf0', '/afs/inf.ed.ac.uk/group/project/dnn_tts/data/nick/lf0/herald_002.lf0']
-    in_file_list_dict['bap'] = ['/afs/inf.ed.ac.uk/group/project/dnn_tts/data/nick/bap/herald_001.bap', '/afs/inf.ed.ac.uk/group/project/dnn_tts/data/nick/bap/herald_002.bap']
+    in_file_list_dict['LSF'] = ['/l/SRC/merlin/egs/nick_hurricane/s1/experiments/nick_hurricane_demo/acoustic_model/data/lsf/001_1.LSF',
+    '/l/SRC/merlin/egs/nick_hurricane/s1/experiments/nick_hurricane_demo/acoustic_model/data/lsf/002_1.LSF']
+    in_file_list_dict['LSFsource'] = ['/l/SRC/merlin/egs/nick_hurricane/s1/experiments/nick_hurricane_demo/acoustic_model/data/lsfsource/001_1.LSFsource',
+    '/l/SRC/merlin/egs/nick_hurricane/s1/experiments/nick_hurricane_demo/acoustic_model/data/lsfsource/002_1.LSFsource']
+    in_file_list_dict['Gain'] = ['/l/SRC/merlin/egs/nick_hurricane/s1/experiments/nick_hurricane_demo/acoustic_model/data/gain/001_1.Gain',
+    '/l/SRC/merlin/egs/nick_hurricane/s1/experiments/nick_hurricane_demo/acoustic_model/data/gain/002_1.Gain']
+    in_file_list_dict['HNR'] = ['/l/SRC/merlin/egs/nick_hurricane/s1/experiments/nick_hurricane_demo/acoustic_model/data/hnr/001_1.HNR',
+    '/l/SRC/merlin/egs/nick_hurricane/s1/experiments/nick_hurricane_demo/acoustic_model/data/hnr/002_1.HNR']
+    in_file_list_dict['F0'] = ['/l/SRC/merlin/egs/nick_hurricane/s1/experiments/nick_hurricane_demo/acoustic_model/data/F0/001_1.F0',
+    '/l/SRC/merlin/egs/nick_hurricane/s1/experiments/nick_hurricane_demo/acoustic_model/data/F0/002_1.F0']
+    
 
-    out_file_list = ['/afs/inf.ed.ac.uk/group/project/dnn_tts/herald_001.cmp', '/afs/inf.ed.ac.uk/group/project/dnn_tts/herald_002.cmp']
+    out_file_list = ['/l/SRC/merlin/egs/nick_hurricane/s1/experiments/nick_hurricane_demo/acoustic_model/data/cmp/001_1.cmp',
+    '/l/SRC/merlin/egs/nick_hurricane/s1/experiments/nick_hurricane_demo/acoustic_model/data/cmp/002_1.cmp']
+    
 
     acoustic_cmper.prepare_nn_data(in_file_list_dict, out_file_list, in_dimension_dict, out_dimension_dict)
 

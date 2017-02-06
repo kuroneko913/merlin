@@ -953,19 +953,6 @@ def main_function(cfg):
            
             label_modifier = HTSLabelModification(silence_pattern = cfg.silence_pattern, label_type = cfg.label_type)
             label_modifier.modify_duration_labels(in_gen_label_align_file_list, gen_dur_list, gen_label_list)
-            
-
-    ### generate wav
-    if cfg.GENWAV:
-    	logger.info('reconstructing waveform(s)')
-    	generate_wav(gen_dir, gen_file_id_list, cfg)     # generated speech
-#    	generate_wav(nn_cmp_dir, gen_file_id_list, cfg)  # reference copy synthesis speech
-    	
-    ### setting back to original conditions before calculating objective scores ###
-    if cfg.GenTestList:
-        in_label_align_file_list = prepare_file_path_list(file_id_list, cfg.in_label_align_dir, cfg.lab_ext, False)
-        binary_label_file_list   = prepare_file_path_list(file_id_list, binary_label_dir, cfg.lab_ext)
-        gen_file_id_list = file_id_list[cfg.train_file_number:cfg.train_file_number+cfg.valid_file_number+cfg.test_file_number]
 
     ### evaluation: RMSE and CORR for duration       
     if cfg.CALMCD and cfg.DurationModel:
@@ -1002,24 +989,14 @@ def main_function(cfg):
     	logger.info('calculating MCD')
 
         ref_data_dir = os.path.join(data_dir, 'ref_data')
-
-        ref_mgc_list = prepare_file_path_list(gen_file_id_list, ref_data_dir, cfg.mgc_ext)
-        ref_bap_list = prepare_file_path_list(gen_file_id_list, ref_data_dir, cfg.bap_ext)
-        ref_lf0_list = prepare_file_path_list(gen_file_id_list, ref_data_dir, cfg.lf0_ext)
-
         in_gen_label_align_file_list = in_label_align_file_list[cfg.train_file_number:cfg.train_file_number+cfg.valid_file_number+cfg.test_file_number]
         calculator = IndividualDistortionComp()
-
-        spectral_distortion = 0.0
-        bap_mse             = 0.0
-        f0_mse              = 0.0
-        vuv_error           = 0.0
         
         valid_file_id_list = file_id_list[cfg.train_file_number:cfg.train_file_number+cfg.valid_file_number]
         test_file_id_list  = file_id_list[cfg.train_file_number+cfg.valid_file_number:cfg.train_file_number+cfg.valid_file_number+cfg.test_file_number]
 
         if cfg.remove_silence_using_binary_labels:
-            ## get lab_dim:
+                ## get lab_dim:
             label_composer = LabelComposer()
             label_composer.load_label_configuration(cfg.label_config_file)
             lab_dim=label_composer.compute_label_dimension()
@@ -1028,13 +1005,17 @@ def main_function(cfg):
             silence_feature = 0
             
             ## Use these to trim silence:
-            untrimmed_test_labels = binary_label_file_list[cfg.train_file_number:cfg.train_file_number+cfg.valid_file_number+cfg.test_file_number]    
+            untrimmed_test_labels = binary_label_file_list[cfg.train_file_number:cfg.train_file_number+cfg.valid_file_number+cfg.test_file_number] 
 
+        if cfg.vocoder_type == "STRAIGHT" or cfg.vocoder_type == "WORLD":
+            ref_mgc_list = prepare_file_path_list(gen_file_id_list, ref_data_dir, cfg.mgc_ext)
+            ref_bap_list = prepare_file_path_list(gen_file_id_list, ref_data_dir, cfg.bap_ext)
+            ref_lf0_list = prepare_file_path_list(gen_file_id_list, ref_data_dir, cfg.lf0_ext)
 
-        if cfg.in_dimension_dict.has_key('mgc'):
-            if cfg.remove_silence_using_binary_labels:
-                untrimmed_reference_data = in_file_list_dict['mgc'][cfg.train_file_number:cfg.train_file_number+cfg.valid_file_number+cfg.test_file_number]
-                trim_silence(untrimmed_reference_data, ref_mgc_list, cfg.mgc_dim, \
+            if cfg.in_dimension_dict.has_key('mgc'):
+                if cfg.remove_silence_using_binary_labels:
+                    untrimmed_reference_data = in_file_list_dict['mgc'][cfg.train_file_number:cfg.train_file_number+cfg.valid_file_number+cfg.test_file_number]
+                    trim_silence(untrimmed_reference_data, ref_mgc_list, cfg.mgc_dim, \
                                     untrimmed_test_labels, lab_dim, silence_feature)
             else:
                 remover = SilenceRemover(n_cmp = cfg.mgc_dim, silence_pattern = cfg.silence_pattern, label_type=cfg.label_type)
@@ -1045,34 +1026,132 @@ def main_function(cfg):
             test_spectral_distortion  *= (10 /numpy.log(10)) * numpy.sqrt(2.0)    ##MCD
 
             
-        if cfg.in_dimension_dict.has_key('bap'):
-            if cfg.remove_silence_using_binary_labels:
-                untrimmed_reference_data = in_file_list_dict['bap'][cfg.train_file_number:cfg.train_file_number+cfg.valid_file_number+cfg.test_file_number]
-                trim_silence(untrimmed_reference_data, ref_bap_list, cfg.bap_dim, \
-                                    untrimmed_test_labels, lab_dim, silence_feature)
-            else:
-                remover = SilenceRemover(n_cmp = cfg.bap_dim, silence_pattern = cfg.silence_pattern, label_type=cfg.label_type)
-                remover.remove_silence(in_file_list_dict['bap'][cfg.train_file_number:cfg.train_file_number+cfg.valid_file_number+cfg.test_file_number], in_gen_label_align_file_list, ref_bap_list)
-            valid_bap_mse        = calculator.compute_distortion(valid_file_id_list, ref_data_dir, gen_dir, cfg.bap_ext, cfg.bap_dim)
-            test_bap_mse         = calculator.compute_distortion(test_file_id_list , ref_data_dir, gen_dir, cfg.bap_ext, cfg.bap_dim)
-            valid_bap_mse = valid_bap_mse / 10.0    ##Cassia's bap is computed from 10*log|S(w)|. if use HTS/SPTK style, do the same as MGC
-            test_bap_mse  = test_bap_mse / 10.0    ##Cassia's bap is computed from 10*log|S(w)|. if use HTS/SPTK style, do the same as MGC
-                
-        if cfg.in_dimension_dict.has_key('lf0'):
-            if cfg.remove_silence_using_binary_labels:
-                untrimmed_reference_data = in_file_list_dict['lf0'][cfg.train_file_number:cfg.train_file_number+cfg.valid_file_number+cfg.test_file_number]
-                trim_silence(untrimmed_reference_data, ref_lf0_list, cfg.lf0_dim, \
-                                    untrimmed_test_labels, lab_dim, silence_feature)
-            else:
-                remover = SilenceRemover(n_cmp = cfg.lf0_dim, silence_pattern = cfg.silence_pattern, label_type=cfg.label_type)
-                remover.remove_silence(in_file_list_dict['lf0'][cfg.train_file_number:cfg.train_file_number+cfg.valid_file_number+cfg.test_file_number], in_gen_label_align_file_list, ref_lf0_list)
-            valid_f0_mse, valid_f0_corr, valid_vuv_error   = calculator.compute_distortion(valid_file_id_list, ref_data_dir, gen_dir, cfg.lf0_ext, cfg.lf0_dim)
-            test_f0_mse , test_f0_corr, test_vuv_error    = calculator.compute_distortion(test_file_id_list , ref_data_dir, gen_dir, cfg.lf0_ext, cfg.lf0_dim)
+            if cfg.in_dimension_dict.has_key('bap'):
+                if cfg.remove_silence_using_binary_labels:
+                    untrimmed_reference_data = in_file_list_dict['bap'][cfg.train_file_number:cfg.train_file_number+cfg.valid_file_number+cfg.test_file_number]
+                    trim_silence(untrimmed_reference_data, ref_bap_list, cfg.bap_dim, \
+                                        untrimmed_test_labels, lab_dim, silence_feature)
+                else:
+                    remover = SilenceRemover(n_cmp = cfg.bap_dim, silence_pattern = cfg.silence_pattern, label_type=cfg.label_type)
+                    remover.remove_silence(in_file_list_dict['bap'][cfg.train_file_number:cfg.train_file_number+cfg.valid_file_number+cfg.test_file_number], in_gen_label_align_file_list, ref_bap_list)
+                valid_bap_mse        = calculator.compute_distortion(valid_file_id_list, ref_data_dir, gen_dir, cfg.bap_ext, cfg.bap_dim)
+                test_bap_mse         = calculator.compute_distortion(test_file_id_list , ref_data_dir, gen_dir, cfg.bap_ext, cfg.bap_dim)
+                valid_bap_mse = valid_bap_mse / 10.0    ##Cassia's bap is computed from 10*log|S(w)|. if use HTS/SPTK style, do the same as MGC
+                test_bap_mse  = test_bap_mse / 10.0    ##Cassia's bap is computed from 10*log|S(w)|. if use HTS/SPTK style, do the same as MGC
+                    
+            if cfg.in_dimension_dict.has_key('lf0'):
+                if cfg.remove_silence_using_binary_labels:
+                    untrimmed_reference_data = in_file_list_dict['lf0'][cfg.train_file_number:cfg.train_file_number+cfg.valid_file_number+cfg.test_file_number]
+                    trim_silence(untrimmed_reference_data, ref_lf0_list, cfg.lf0_dim, \
+                                        untrimmed_test_labels, lab_dim, silence_feature)
+                else:
+                    remover = SilenceRemover(n_cmp = cfg.lf0_dim, silence_pattern = cfg.silence_pattern, label_type=cfg.label_type)
+                    remover.remove_silence(in_file_list_dict['lf0'][cfg.train_file_number:cfg.train_file_number+cfg.valid_file_number+cfg.test_file_number], in_gen_label_align_file_list, ref_lf0_list)
+                valid_f0_mse, valid_f0_corr, valid_vuv_error   = calculator.compute_distortion(valid_file_id_list, ref_data_dir, gen_dir, cfg.lf0_ext, cfg.lf0_dim)
+                test_f0_mse , test_f0_corr, test_vuv_error    = calculator.compute_distortion(test_file_id_list , ref_data_dir, gen_dir, cfg.lf0_ext, cfg.lf0_dim)
 
-        logger.info('Develop: DNN -- MCD: %.3f dB; BAP: %.3f dB; F0:- RMSE: %.3f Hz; CORR: %.3f; VUV: %.3f%%' \
+            logger.info('Develop: DNN -- MCD: %.3f dB; BAP: %.3f dB; F0:- RMSE: %.3f Hz; CORR: %.3f; VUV: %.3f%%' \
                     %(valid_spectral_distortion, valid_bap_mse, valid_f0_mse, valid_f0_corr, valid_vuv_error*100.))
-        logger.info('Test   : DNN -- MCD: %.3f dB; BAP: %.3f dB; F0:- RMSE: %.3f Hz; CORR: %.3f; VUV: %.3f%%' \
+            logger.info('Test   : DNN -- MCD: %.3f dB; BAP: %.3f dB; F0:- RMSE: %.3f Hz; CORR: %.3f; VUV: %.3f%%' \
                     %(test_spectral_distortion , test_bap_mse , test_f0_mse , test_f0_corr, test_vuv_error*100.))
+            
+        elif cfg.vocoder_type == "GlottHMM":
+            ref_lsf_list = prepare_file_path_list(gen_file_id_list, ref_data_dir, cfg.LSF_ext)
+            ref_lsfsource_list = prepare_file_path_list(gen_file_id_list, ref_data_dir, cfg.LSFsource_ext)
+            ref_f0_list = prepare_file_path_list(gen_file_id_list, ref_data_dir, cfg.F0_ext)
+            ref_gain_list = prepare_file_path_list(gen_file_id_list, ref_data_dir, cfg.Gain_ext)
+            ref_hnr_list = prepare_file_path_list(gen_file_id_list, ref_data_dir, cfg.HNR_ext)
+
+            if cfg.in_dimension_dict.has_key('LSF'):
+                if cfg.remove_silence_using_binary_labels:
+                    untrimmed_reference_data = in_file_list_dict['LSF'][cfg.train_file_number:cfg.train_file_number+cfg.valid_file_number+cfg.test_file_number]
+                    trim_silence(untrimmed_reference_data, ref_lsf_list, cfg.LSF_dim, \
+                                        untrimmed_test_labels, lab_dim, silence_feature)
+                else:
+                    remover = SilenceRemover(n_cmp = cfg.LSF_dim, silence_pattern = cfg.silence_pattern, label_type=cfg.label_type)
+                    remover.remove_silence(in_file_list_dict['LSF'][cfg.train_file_number:cfg.train_file_number+cfg.valid_file_number+cfg.test_file_number], in_gen_label_align_file_list, ref_lsf_list)
+                valid_lsf_distortion = calculator.compute_distortion(valid_file_id_list, ref_data_dir, gen_dir, cfg.LSF_ext, cfg.LSF_dim)
+                test_lsf_distortion  = calculator.compute_distortion(test_file_id_list , ref_data_dir, gen_dir, cfg.LSF_ext, cfg.LSF_dim)
+                valid_lsf_distortion *=  numpy.sqrt(2.0)    ##RMSE
+                test_lsf_distortion  *=  numpy.sqrt(2.0)    ##RMSE
+        
+            if cfg.in_dimension_dict.has_key('LSFsource'):
+                if cfg.remove_silence_using_binary_labels:
+                    untrimmed_reference_data = in_file_list_dict['LSFsource'][cfg.train_file_number:cfg.train_file_number+cfg.valid_file_number+cfg.test_file_number]
+                    trim_silence(untrimmed_reference_data, ref_lsfsource_list, cfg.LSFsource_dim, \
+                                        untrimmed_test_labels, lab_dim, silence_feature)
+                else:
+                    remover = SilenceRemover(n_cmp = cfg.LSFsource_dim, silence_pattern = cfg.silence_pattern, label_type=cfg.label_type)
+                    remover.remove_silence(in_file_list_dict['LSFsource'][cfg.train_file_number:cfg.train_file_number+cfg.valid_file_number+cfg.test_file_number], in_gen_label_align_file_list, ref_lsfsource_list)
+                valid_lsfsource_distortion = calculator.compute_distortion(valid_file_id_list, ref_data_dir, gen_dir, cfg.LSFsource_ext, cfg.LSFsource_dim)
+                test_lsfsource_distortion  = calculator.compute_distortion(test_file_id_list , ref_data_dir, gen_dir, cfg.LSFsource_ext, cfg.LSFsource_dim)
+                valid_lsfsource_distortion *=  numpy.sqrt(2.0)    ##RMSE
+                test_lsfsource_distortion  *=  numpy.sqrt(2.0)    ##RMSE
+            
+            if cfg.in_dimension_dict.has_key('HNR'):
+                if cfg.remove_silence_using_binary_labels:
+                    untrimmed_reference_data = in_file_list_dict['HNR'][cfg.train_file_number:cfg.train_file_number+cfg.valid_file_number+cfg.test_file_number]
+                    trim_silence(untrimmed_reference_data, ref_hnr_list, cfg.HNR_dim, \
+                                        untrimmed_test_labels, lab_dim, silence_feature)
+                else:
+                    remover = SilenceRemover(n_cmp = cfg.HNR_dim, silence_pattern = cfg.silence_pattern, label_type=cfg.label_type)
+                    remover.remove_silence(in_file_list_dict['HNR'][cfg.train_file_number:cfg.train_file_number+cfg.valid_file_number+cfg.test_file_number], in_gen_label_align_file_list, ref_hnr_list)
+                valid_hnr_distortion = calculator.compute_distortion(valid_file_id_list, ref_data_dir, gen_dir, cfg.HNR_ext, cfg.HNR_dim)
+                test_hnr_distortion  = calculator.compute_distortion(test_file_id_list , ref_data_dir, gen_dir, cfg.HNR_ext, cfg.HNR_dim)
+                valid_hnr_distortion *=  numpy.sqrt(2.0)    ##RMSE
+                test_hnr_distortion  *=  numpy.sqrt(2.0)    ##RMSE
+            
+            if cfg.in_dimension_dict.has_key('F0'):
+                if cfg.remove_silence_using_binary_labels:
+                    untrimmed_reference_data = in_file_list_dict['F0'][cfg.train_file_number:cfg.train_file_number+cfg.valid_file_number+cfg.test_file_number]
+                    trim_silence(untrimmed_reference_data, ref_f0_list, cfg.F0_dim, \
+                                        untrimmed_test_labels, lab_dim, silence_feature)
+                else:
+                    remover = SilenceRemover(n_cmp = cfg.F0_dim, silence_pattern = cfg.silence_pattern, label_type=cfg.label_type)
+                    remover.remove_silence(in_file_list_dict['F0'][cfg.train_file_number:cfg.train_file_number+cfg.valid_file_number+cfg.test_file_number], in_gen_label_align_file_list, ref_f0_list)
+                valid_f0_mse, valid_f0_corr, valid_vuv_error   = calculator.compute_distortion(valid_file_id_list, ref_data_dir, gen_dir, cfg.F0_ext, cfg.F0_dim)
+                test_f0_mse , test_f0_corr, test_vuv_error    = calculator.compute_distortion(test_file_id_list , ref_data_dir, gen_dir, cfg.F0_ext, cfg.F0_dim)
+            
+            if cfg.in_dimension_dict.has_key('Gain'):
+                if cfg.remove_silence_using_binary_labels:
+                    untrimmed_reference_data = in_file_list_dict['Gain'][cfg.train_file_number:cfg.train_file_number+cfg.valid_file_number+cfg.test_file_number]
+                    trim_silence(untrimmed_reference_data, ref_gain_list, cfg.Gain_dim, \
+                                        untrimmed_test_labels, lab_dim, silence_feature)
+                else:
+                    remover = SilenceRemover(n_cmp = cfg.Gain_dim, silence_pattern = cfg.silence_pattern, label_type=cfg.label_type)
+                    remover.remove_silence(in_file_list_dict['Gain'][cfg.train_file_number:cfg.train_file_number+cfg.valid_file_number+cfg.test_file_number], in_gen_label_align_file_list, ref_gain_list)
+                valid_gain_distortion = calculator.compute_distortion(valid_file_id_list, ref_data_dir, gen_dir, cfg.Gain_ext, cfg.Gain_dim)
+                test_gain_distortion  = calculator.compute_distortion(test_file_id_list , ref_data_dir, gen_dir, cfg.Gain_ext, cfg.Gain_dim)
+                valid_gain_distortion *=  numpy.sqrt(2.0)    ##RMSE
+                test_gain_distortion  *=  numpy.sqrt(2.0)    ##RMSE
+
+            logger.info('Develop: DNN -- LSF: %.3f dB; LSFsource: %.3f dB; Gain: %3.f dB; HNR: %3.f dB; F0:- RMSE: %.3f Hz; CORR: %.3f; VUV: %.3f%%' \
+                    %(valid_lsf_distortion, valid_lsfsource_distortion, valid_gain_distortion, valid_hnr_distortion, valid_f0_mse, valid_f0_corr, valid_vuv_error*100.))
+            logger.info('Test: DNN -- LSF: %.3f dB; LSFsource: %.3f dB; Gain: %3.f dB; HNR: %3.f dB; F0:- RMSE: %.3f Hz; CORR: %.3f; VUV: %.3f%%' \
+                    %(test_lsf_distortion, test_lsfsource_distortion, test_gain_distortion, test_hnr_distortion, test_f0_mse, test_f0_corr, test_vuv_error*100.))
+            
+            print(in_file_list_dict['Gain'][cfg.train_file_number:cfg.train_file_number+cfg.valid_file_number+cfg.test_file_number])
+            print(ref_gain_list)
+            print('Develop: DNN -- LSF: %.3f dB; LSFsource: %.3f dB; Gain: %3.f dB; HNR: %3.f dB; F0:- RMSE: %.3f Hz; CORR: %.3f; VUV: %.3f%%' \
+                    %(valid_lsf_distortion, valid_lsfsource_distortion, valid_gain_distortion, valid_hnr_distortion, valid_f0_mse, valid_f0_corr, valid_vuv_error*100.))
+            print('Test: DNN -- LSF: %.3f dB; LSFsource: %.3f dB; Gain: %3.f dB; HNR: %3.f dB; F0:- RMSE: %.3f Hz; CORR: %.3f; VUV: %.3f%%' \
+                    %(test_lsf_distortion, test_lsfsource_distortion, test_gain_distortion, test_hnr_distortion, test_f0_mse, test_f0_corr, test_vuv_error*100.))
+
+        else:
+            logger.critical('The vocoder %s is not supported yet!\n' % cfg.vocoder_type )
+            raise
+        
+    ### generate wav
+    if cfg.GENWAV:
+    	logger.info('reconstructing waveform(s)')
+    	generate_wav(gen_dir, gen_file_id_list, cfg)     # generated speech
+#    	generate_wav(nn_cmp_dir, gen_file_id_list, cfg)  # reference copy synthesis speech
+    	
+    ### setting back to original conditions before calculating objective scores ###
+    if cfg.GenTestList:
+        in_label_align_file_list = prepare_file_path_list(file_id_list, cfg.in_label_align_dir, cfg.lab_ext, False)
+        binary_label_file_list   = prepare_file_path_list(file_id_list, binary_label_dir, cfg.lab_ext)
+        gen_file_id_list = file_id_list[cfg.train_file_number:cfg.train_file_number+cfg.valid_file_number+cfg.test_file_number]
         
 if __name__ == '__main__':
     
@@ -1129,20 +1208,20 @@ if __name__ == '__main__':
     logger.info('    device: '+theano.config.device)
 
     # Check for the presence of git
-    ret = os.system('git status > /dev/null')
-    if ret==0:
-        logger.info('  Git is available in the working directory:')
-        git_describe = subprocess.Popen(['git', 'describe', '--tags', '--always'], stdout=subprocess.PIPE).communicate()[0][:-1]
-        logger.info('    Merlin version: '+git_describe)
-        git_branch = subprocess.Popen(['git', 'rev-parse', '--abbrev-ref', 'HEAD'], stdout=subprocess.PIPE).communicate()[0][:-1]
-        logger.info('    branch: '+git_branch)
-        git_diff = subprocess.Popen(['git', 'diff', '--name-status'], stdout=subprocess.PIPE).communicate()[0]
-        git_diff = git_diff.replace('\t',' ').split('\n')
-        logger.info('    diff to Merlin version:')
-        for filediff in git_diff:
-            if len(filediff)>0: logger.info('      '+filediff)
-        logger.info('      (all diffs logged in '+os.path.basename(cfg.log_file)+'.gitdiff'+')')
-        os.system('git diff > '+cfg.log_file+'.gitdiff')
+    # ret = os.system('git status > /dev/null')
+    # if ret==0:
+    #     logger.info('  Git is available in the working directory:')
+    #     git_describe = subprocess.Popen(['git', 'describe', '--tags', '--always'], stdout=subprocess.PIPE).communicate()[0][:-1]
+    #     logger.info('    Merlin version: '+git_describe)
+    #     git_branch = subprocess.Popen(['git', 'rev-parse', '--abbrev-ref', 'HEAD'], stdout=subprocess.PIPE).communicate()[0][:-1]
+    #     logger.info('    branch: '+git_branch)
+    #     git_diff = subprocess.Popen(['git', 'diff', '--name-status'], stdout=subprocess.PIPE).communicate()[0]
+    #     git_diff = git_diff.replace('\t',' ').split('\n')
+    #     logger.info('    diff to Merlin version:')
+    #     for filediff in git_diff:
+    #         if len(filediff)>0: logger.info('      '+filediff)
+    #     logger.info('      (all diffs logged in '+os.path.basename(cfg.log_file)+'.gitdiff'+')')
+    #     os.system('git diff > '+cfg.log_file+'.gitdiff')
 
     logger.info('Execution information:')
     logger.info('  HOSTNAME: '+socket.getfqdn())
