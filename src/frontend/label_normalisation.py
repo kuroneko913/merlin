@@ -1,5 +1,5 @@
 
-import os
+import os,pdb
 import numpy, re, sys
 from multiprocessing import Pool
 from io_funcs.binary_io import BinaryIOCollection
@@ -311,11 +311,15 @@ class HTSLabelNormalisation(LabelNormalisation):
         return  dur_feature_matrix
 
     def load_labels_with_phone_alignment(self, file_name, dur_file_name):
-
+        #pdb.set_trace()
         # this is not currently used ??? -- it works now :D
         logger = logging.getLogger("labels")
         #logger.critical('unused function ???')
         #raise Exception
+
+
+        # add_duration_info_mode(2017.05.20 14:11)
+        test_mode_flag=False
         
         if dur_file_name:
             io_funcs = BinaryIOCollection()
@@ -339,16 +343,27 @@ class HTSLabelNormalisation(LabelNormalisation):
             if len(line) < 1:
                 continue
             temp_list = re.split('\s+', line)
-            start_time = int(temp_list[0])
-            end_time = int(temp_list[1])
-            full_label = temp_list[2]
-
+            try:
+                start_time = int(temp_list[0])
+                try:
+                    end_time = int(temp_list[1])
+                    full_label = temp_list[2]
+                except IndexError:
+                    pass
+            except ValueError:
+                test_mode_flag=True
+                full_label=temp_list[0]
+                
+            
             # to do - support different frame shift - currently hardwired to 5msec
             # currently under beta testing: support different frame shift 
             if dur_file_name:
                 frame_number = manual_dur_data[ph_count]
             else:
-                frame_number = int((end_time - start_time)/50000)
+                if test_mode_flag:
+                    pass
+                else:
+                    frame_number = int((end_time - start_time)/50000)
 
             ph_count = ph_count+1
             #label_binary_vector = self.pattern_matching(full_label)

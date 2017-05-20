@@ -38,7 +38,8 @@
 ################################################################################
 
 
-import  sys, numpy, re, math
+import  sys, numpy, re, math,os
+import pdb
 from io_funcs.binary_io import BinaryIOCollection
 
 class SilenceRemover(object):
@@ -63,7 +64,8 @@ class SilenceRemover(object):
 
         io_funcs = BinaryIOCollection()
         for i in xrange(file_number):
-
+            # if i > 60:
+            #     pdb.set_trace()
             if self.label_type=="phone_align":
                 if dur_file_list:
                     dur_file_name = dur_file_list[i]
@@ -77,8 +79,9 @@ class SilenceRemover(object):
             
             frame_number = ori_cmp_data.size/self.n_cmp
             
-            if len(nonsilence_indices) == frame_number:
-                print 'WARNING: no silence found!'
+            # if len(nonsilence_indices) == frame_number:
+            #     print 'WARNING: no silence found!',
+            #     print '%s'%(os.path.basename(in_align_list[i]))
                 # previsouly: continue -- in fact we should keep non-silent data!
 
             ## if labels have a few extra frames than audio, this can break the indexing, remove them:
@@ -125,6 +128,8 @@ class SilenceRemover(object):
         
     def load_phone_alignment(self, alignment_file_name, dur_file_name=None):
 
+        test_mode_flag=False
+        
         if dur_file_name:
             io_funcs = BinaryIOCollection()
             dur_dim = 1 ## hard coded for now
@@ -139,17 +144,27 @@ class SilenceRemover(object):
             if len(line) < 1:
                 continue
             temp_list = re.split('\s+', line)
-            start_time = int(temp_list[0])
-            end_time = int(temp_list[1])
-            full_label = temp_list[2]
-
+            try:
+                start_time = int(temp_list[0])
+                try:
+                    end_time = int(temp_list[1])
+                    full_label = temp_list[2]
+                except IndexError:
+                    pass
+            except ValueError:
+                test_mode_flag=True
+                full_label=temp_list[0]
+            #pdb.set_trace()
             # to do - support different frame shift - currently hardwired to 5msec
             # currently under beta testing: supports different frame shift 
             if dur_file_name:
                 frame_number = manual_dur_data[ph_count]
                 ph_count = ph_count+1
             else:
-                frame_number = int((end_time - start_time)/50000)
+                if test_mode_flag:
+                    pass
+                else:
+                    frame_number = int((end_time - start_time)/50000)
 
             label_binary_flag = self.check_silence_pattern(full_label)
 

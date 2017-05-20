@@ -115,7 +115,7 @@ class HTSLabelModification(object):
     
     def modify_dur_from_phone_alignment_labels(self, label_file_name, gen_dur_file_name, gen_lab_file_name): 
         logger = logging.getLogger("dur")
-
+        test_mode_flag=False 
         dur_dim = 1
         
         io_funcs = BinaryIOCollection()
@@ -138,11 +138,19 @@ class HTSLabelModification(object):
             if len(line) < 1:
                 continue
             temp_list = re.split('\s+', line)
-            start_time = int(temp_list[0])
-            end_time = int(temp_list[1])
-            
-            full_label = temp_list[2]
-
+            try:
+                start_time = int(temp_list[0])
+                try:
+                    end_time = int(temp_list[1])
+                    full_label = temp_list[2]
+                except IndexError:
+                    pass
+            except ValueError:
+                test_mode_flag=True
+                full_label=temp_list[0]
+                end_time=0
+                start_time=0
+                
             label_binary_flag = self.check_silence_pattern(full_label)
           
             if label_binary_flag == 1:
